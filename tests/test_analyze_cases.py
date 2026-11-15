@@ -247,3 +247,43 @@ def test_classes_matching_a_protocol_override_its_methods(tmp_path):
     assert [(e["id"], e["relation"], e["certainty"]) for e in result["levels"][0]] == [
         ("function:main.py::use", "dispatch", "possible")
     ]
+
+
+def test_protocol_property_members_can_be_plain_attributes(tmp_path):
+    source = (
+        "from typing import Protocol\n\n\n"
+        "class Plugin(Protocol):\n"
+        "    @property\n"
+        "    def id(self) -> str: ...\n\n"
+        "    def run(self): ...\n\n\n"
+        "class Real:\n"
+        "    id = 'real'\n\n"  # 用類別屬性滿足 Protocol 的 property
+        "    def run(self):\n        return 1\n\n\n"
+        "class NotOne:\n"
+        "    id = 'x'\n"  # 沒有 run：不算
+    )
+    graph = analyze(make(tmp_path / "proj", {"main.py": source}), engine_check=False)
+    overrides = {(e.source, e.target) for e in graph.edges if e.type == "overrides"}
+    assert overrides == {("function:main.py::Real.run", "function:main.py::Plugin.run")}
+
+
+def test_partial_protocol_implementation_is_marked(tmp_path):
+    source = (
+        "from typing import Protocol\n\n\n"
+        "class Plugin(Protocol):\n"
+        "    def a(self): ...\n"
+        "    def b(self): ...\n"
+        "    def c(self): ...\n\n\n"
+        "class Most:\n"  # 三個裡有兩個：算，但標 partial
+        "    def a(self):\n        return 1\n\n"
+        "    def b(self):\n        return 2\n\n\n"
+        "class OnlyOne:\n"  # 只有一個同名方法：不算
+        "    def a(self):\n        return 1\n"
+    )
+    graph = analyze(make(tmp_path / "proj", {"main.py": source}), engine_check=False)
+    overrides = {
+        (e.source.split("::")[1], e.properties.get("partial"))
+        for e in graph.edges
+        if e.type == "overrides"
+    }
+    assert overrides == {("Most.a", True), ("Most.b", True)}

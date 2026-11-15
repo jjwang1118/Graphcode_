@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -87,16 +88,35 @@ class _Mapper:
         return best.id if best else None
 
 
-def compare(graph: Graph, observed: dict[str, Any]) -> dict[str, Any]:
-    """觀察到的呼叫，靜態分析有沒有。回傳統計與漏掉的清單。
+# 一組觀察到的呼叫，在圖上屬於哪一種。前四種影響範圍都查得到。
+CATEGORIES = ("confirmed", "reference", "dispatch", "nested", "candidate", "test_double", "missing")
 
-    confirmed：圖上有這條 calls 邊。
-    dispatch：圖上沒有這條邊，但呼叫者有一條邊指向被呼叫者覆寫的祖先方法（影響範圍查得到，標為「可能」）。
-    missing：靜態分析漏掉的。
+
+def _is_test(node_id: str) -> bool:
+    parts = node_id.split(":", 1)[1].split("::")[0].split("/")
+    return (
+        any(p in ("tests", "test") for p in parts[:-1])
+        or parts[-1].startswith("test_")
+        or parts[-1] == "conftest.py"
+    )
+
+
+def compare(graph: Graph, observed: dict[str, Any]) -> dict[str, Any]:
+    """觀察到的每一組呼叫，靜態分析的圖上有沒有。
+
+    confirmed：有這條 calls 邊。
+    reference：有 references 邊（讀 @property 這類「不寫括號卻會執行函式」的存取）。
+    dispatch：呼叫者連到被呼叫者覆寫的祖先方法（含 Protocol）；影響範圍標為「可能」。
+    nested：邊記在呼叫者裡面的定義上（裝飾器：執行的是外層，我們算在被裝飾者頭上）。
+    candidate：呼叫者有一筆解不出的使用點提到這個名字；影響範圍列為「候選」。
+    test_double：被呼叫的是測試檔裡的函式、呼叫者不是測試（測試注入的替身），不是程式本身的依賴。
+    missing：圖上完全沒有。
     """
     index = Index(graph)
     mapper = _Mapper(index)
-    static = {(e.source, e.target) for e in graph.edges if e.type == "calls"}
+    calls = {(e.source, e.target) for e in graph.edges if e.type == "calls"}
+    references = {(e.source, e.target) for e in graph.edges if e.type == "references"}
+    static = calls | references
     pairs: dict[tuple[str, str], int] = {}
     unmapped = 0
     for pair in observed["pairs"]:
@@ -121,45 +141,68 @@ def compare(graph: Graph, observed: dict[str, Any]) -> dict[str, Any]:
                     queue.append(edge.target)
         return found
 
-    confirmed, dispatch, missing = [], [], []
+    def classify(source: str, target: str) -> str:
+        if (source, target) in calls:
+            return "confirmed"
+        if (source, target) in references:
+            return "reference"
+        if any((source, base) in static for base in ancestors(target)):
+            return "dispatch"
+        if any((child, target) in static for child in index.children.get(source, [])):
+            return "nested"
+        if _is_test(target) and not _is_test(source):
+            return "test_double"
+        name = re.escape(index.nodes[target].label)
+        unresolved = index.nodes[source].properties.get("unresolved_calls", [])
+        if any(re.search(rf"\b{name}\b", item["text"]) for item in unresolved):
+            return "candidate"
+        return "missing"
+
+    found: dict[str, list[dict[str, Any]]] = {name: [] for name in CATEGORIES}
     for (source, target), count in sorted(pairs.items()):
-        item = {"caller": source, "callee": target, "count": count}
-        if (source, target) in static:
-            confirmed.append(item)
-        elif any((source, base) in static for base in ancestors(target)):
-            dispatch.append(item)
-        else:
-            missing.append(item)
+        found[classify(source, target)].append({"caller": source, "callee": target, "count": count})
     total = len(pairs)
+    counts = {name: len(items) for name, items in found.items()}
+    covered = counts["confirmed"] + counts["reference"] + counts["dispatch"] + counts["nested"]
+    expected = total - counts["test_double"]  # 測試替身不是靜態分析該找到的
+
+    def ratio(part: int, whole: int) -> float | None:
+        return round(part / whole, 4) if whole else None
+
     return {
         "command": observed.get("command"),
         "returncode": observed.get("returncode"),
         "observed": total,
-        "confirmed": len(confirmed),
-        "dispatch": len(dispatch),
-        "missing": len(missing),
+        **counts,
         "unmapped": unmapped,
-        "recall": round(len(confirmed) / total, 4) if total else None,
-        "recall_with_dispatch": round((len(confirmed) + len(dispatch)) / total, 4)
-        if total
-        else None,
-        "missing_calls": missing,
-        "dispatch_calls": dispatch,
+        # 最嚴格：只算 calls 邊，分母是全部
+        "recall": ratio(counts["confirmed"], total),
+        # 影響範圍查得到的（確定或可能），分母不含測試替身
+        "coverage": ratio(covered, expected),
+        # 再加上列為候選的
+        "coverage_with_candidates": ratio(covered + counts["candidate"], expected),
+        "missing_calls": found["missing"],
+        "candidate_calls": found["candidate"],
+        "dispatch_calls": found["dispatch"],
     }
 
 
 def merge(graph: Graph, observed: dict[str, Any]) -> dict[str, Any]:
-    """把靜態分析漏掉、但執行時觀察到的呼叫加進圖：另成一類 `observed_calls`，不與靜態的混在一起。"""
+    """把靜態分析沒連上、但執行時觀察到的呼叫加進圖：另成一類 `observed_calls`，不與靜態的混在一起。
+
+    加的是 missing 與 candidate（程式本身真的發生的呼叫）；測試替身不加。
+    """
     report = compare(graph, observed)
-    for item in report["missing_calls"]:
-        graph.edges.append(
-            Edge(
-                item["caller"],
-                item["callee"],
-                "observed_calls",
-                {"count": item["count"], "evidence": "runtime"},
+    for kind in ("missing_calls", "candidate_calls"):
+        for item in report[kind]:
+            graph.edges.append(
+                Edge(
+                    item["caller"],
+                    item["callee"],
+                    "observed_calls",
+                    {"count": item["count"], "evidence": "runtime"},
+                )
             )
-        )
     graph.meta["runtime"] = {k: v for k, v in report.items() if not k.endswith("_calls")}
     graph.validate()
     return report

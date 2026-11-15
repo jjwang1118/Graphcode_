@@ -28,6 +28,7 @@ REASONS = {
     "unindexed": "指向專案內，但不是 class／function 定義",
     "no_call_method": "物件實例，找不到 __call__",
     "unknown": "引擎解不出",
+    "property": "屬性存取，接收者型別未知（專案內有同名的 @property）",
 }
 
 
@@ -38,6 +39,7 @@ class UsesResult:
     calls: dict[str, Any] = field(default_factory=dict)
     inherits: dict[str, int] = field(default_factory=dict)
     references: int = 0
+    unresolved_property_reads: int = 0
     overrides: int = 0
 
 
@@ -62,6 +64,8 @@ class _Resolver:
         self.methods: dict[str, dict[str, str]] = {}  # class id → {方法名: function id}
         self.parents: dict[str, list[str]] = {}  # class id → 專案內的 base
         self.candidates: set[str] = set()
+        self.properties: set[str] = set()  # 專案內 @property 的名字
+        self.property_functions: set[str] = set()  # 它們的節點 id
         for rel, file_facts in facts.items():
             ids = self.scope_ids.setdefault(rel, {})
             for d in file_facts.definitions:
@@ -75,6 +79,12 @@ class _Resolver:
                     if owner.startswith("class:"):
                         self.methods.setdefault(owner, {}).setdefault(d.name, node_id)
                 self.candidates.add(d.name)
+                if d.kind == "function" and any(
+                    x.split(".")[-1] in ("property", "cached_property")
+                    for x in d.properties.get("decorators", [])
+                ):
+                    self.properties.add(d.name)
+                    self.property_functions.add(node_id)
             self.candidates.update(i.asname for i in file_facts.imports if i.asname)
         self._edges: dict[tuple[str, str, str, str, str], dict[str, Any]] = {}
         self.result = UsesResult()
@@ -265,10 +275,15 @@ class _Resolver:
             self._edge(scope_id, target, "calls", site.line, ambiguous=ambiguous, **extra)
 
     def _reference(self, script: Any, scope_id: str, site: Site) -> None:
-        for name in self.engine.goto(script, site.line, site.col):
+        found = self.engine.goto(script, site.line, site.col)
+        for name in found:
             kind, value = self._map(name)
             if kind == "node" and value[0] != scope_id:
                 self._edge(scope_id, value[0], "references", site.line)
+        # 讀 @property 會執行函式。接收者的型別推不出來時連不到它：不能無聲地漏掉
+        if not found and "." in site.text and site.text.split(".")[-1] in self.properties:
+            self.result.unresolved_property_reads += 1
+            self._unresolved("unresolved_calls", scope_id, site, REASONS["property"])
 
     # --- 主流程 ---
 
@@ -326,19 +341,30 @@ class _Resolver:
         }
         for protocol in protocols:
             wanted = self.methods.get(protocol, {})
-            if not wanted:
+            # 只要求「真的方法」都有。Protocol 的 @property 成員可以用一般屬性滿足
+            # （類別屬性、dataclass 欄位、__init__ 裡的 self.x），那些我們看不全，不拿來當門檻
+            required = [n for n, fid in wanted.items() if fid not in self.property_functions]
+            if not required:
                 continue
             for class_id in self.methods:
                 if class_id in protocols or protocol in self._ancestors(class_id):
                     continue
-                if all(self._find_method(class_id, name) for name in wanted):
+                matched = [n for n in required if self._find_method(class_id, n)]
+                # 實際的程式常常只實作一部分（鴨子型別）：方法全部都有算符合；
+                # 至少兩個、且過半，也算，但標 partial
+                complete = len(matched) == len(required)
+                partial = len(matched) >= 2 and len(matched) * 2 >= len(required)
+                if complete or partial:
                     for name, declared in wanted.items():
-                        own = self.methods[class_id].get(name)
+                        # 實作可能是從祖先繼承來的：連到真正的那個方法
+                        own = self._find_method(class_id, name)
                         if own:
-                            self._edge(own, declared, "overrides", 0, via="protocol")
-        for (source, target, kind, via, _callee), props in self._edges.items():
+                            self._edge(
+                                own, declared, "overrides", 0, via="protocol", partial=not complete
+                            )
+        for (source, target, kind, _via, _callee), props in self._edges.items():
             if kind == "overrides":
-                props = {"via": via} if via else {}
+                props = {k: props[k] for k in ("via", "partial") if props.get(k)}
             else:
                 props["lines"].sort()
             result.edges.append(Edge(source, target, kind, props))

@@ -32,7 +32,7 @@
 
 - 完整名字例：`Runner.run`、`Runner.fetch.inner`。
 - 同一個檔案內重複定義的 class／function：第二個起 id 帶 `@行號`（`helper@30`），並有 `redefinition: true`。
-- 解不出的使用點記在節點上：`unresolved_calls`（file／class／function）、`unresolved_bases`（class），每筆有 `line`、`text`、`reason`。
+- 解不出的使用點記在節點上：`unresolved_calls`（file／class／function；含解不出的 `@property` 讀取）、`unresolved_bases`（class），每筆有 `line`、`text`、`reason`。
 - 帶條件才出現的欄位：`parse_error`（有錯才有）、`has_main_guard`（為真才有）、`decorators`、`docstring`、`annotation`（有才有）、`distributions`（查得到套件名才有）、`distribution_source`（套件名是猜的才有）、`declared`（只在 `third_party`／`unknown`）。
 - `category`：`stdlib`（標準庫）／`third_party`（第三方）／`unknown`（沒安裝也沒宣告）／`excluded`（在專案內但被掃描排除）。
 
@@ -47,7 +47,7 @@
 | `imports` | file → file／directory／external_package | 見 `analyze.md` |
 | `calls` | file／class／function → function／class／external_package | 見 `analyze.md`（AN-U） |
 | `inherits` | class → class／external_package | 同上 |
-| `overrides` | function → function（子類別方法 → 祖先的同名方法；或實作 → Protocol 的方法） | `via: protocol`（只有 Protocol 的情況才有） |
+| `overrides` | function → function（子類別方法 → 祖先的同名方法；或實作 → Protocol 的方法） | `via: protocol`（只有 Protocol 的情況才有）、`partial: true`（只實作了 Protocol 的一部分方法） |
 | `observed_calls` | file／function → function | `count`、`evidence: runtime`。只有 `trace.merge` 會加，見 `trace.md` |
 | `references` | file／class／function → class／function／variable | 同上 |
 

@@ -33,6 +33,7 @@ def main() -> None:
         save(graph, args.output)
     missing = sorted(report.pop("missing_calls"), key=lambda item: -item["count"])
     report.pop("dispatch_calls")
+    report.pop("candidate_calls")
     print(json.dumps(report, ensure_ascii=False, indent=1))
     for item in missing[: args.top]:
         print(f"  漏掉 ×{item['count']}  {item['caller']}  →  {item['callee']}")

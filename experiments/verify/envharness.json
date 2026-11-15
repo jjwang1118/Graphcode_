@@ -1,0 +1,15 @@
+{
+  "roots": ["."],
+  "package_importers": [{"package": "litellm", "under": ["envharness/"]}],
+  "cycles_under": ["envharness/"],
+  "subclasses": [
+    {
+      "file": "envharness/core/actionable_env.py",
+      "class": "ActionableEnv",
+      "module": "envharness.core.actionable_env",
+      "packages": ["envharness", "experiments"],
+      "under": ["envharness/", "experiments/"]
+    }
+  ],
+  "direct_callers": [{"file": "envharness/infra/model.py", "function": "split_model", "under": ["envharness/"]}]
+}

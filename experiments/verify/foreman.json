@@ -1,0 +1,18 @@
+{
+  "roots": [".", "src"],
+  "module_importers": [
+    {"module": "foreman.request_budget", "file": "src/foreman/request_budget.py", "under": ["src/", "tests/"]}
+  ],
+  "package_importers": [{"package": "openai"}],
+  "cycles_under": ["src/foreman/"],
+  "subclasses": [
+    {
+      "file": "src/foreman/responsibilities/base.py",
+      "class": "Responsibility",
+      "module": "foreman.responsibilities.base",
+      "packages": ["foreman"],
+      "under": ["src/"]
+    }
+  ],
+  "direct_callers": [{"file": "src/foreman/paths.py", "function": "foreman_data_dir", "under": ["src/"]}]
+}

@@ -41,7 +41,7 @@ def test_observed_calls_are_classified(report):
         1,
     )
     assert report["recall"] == round(5 / 7, 4)
-    assert report["recall_with_dispatch"] == round(6 / 7, 4)
+    assert report["coverage"] == round(6 / 7, 4)
     assert report["unmapped"] == 0
 
 
@@ -64,6 +64,60 @@ def test_generator_expression_inside_a_function_is_not_a_self_call(tmp_path):
     report = compare(analyze(tmp_path, engine_check=False), record(tmp_path, ["gen.py"]))
     assert report["missing_calls"] == []
     assert (report["observed"], report["confirmed"]) == (2, 2)  # 檔案 → main、main → total
+
+
+def test_every_kind_of_observed_call_is_classified(tmp_path):
+    files = {
+        "lib.py": (
+            'NAME = "".join(["b", "o", "x"])\n'
+            "HANDLERS = {}\n\n\n"
+            "class Box:\n"
+            "    @property\n"
+            "    def size(self):\n        return 1\n\n\n"
+            "class Holder:\n"
+            "    def __init__(self):\n        self.box = Box()\n\n\n"
+            "def deco(fn):\n    return fn\n\n\n"
+            "def typed(box: Box):\n    return box.size\n\n\n"  # 讀 property：references
+            # 屬性名字執行時才知道，引擎推不出型別：候選
+            "def untyped(holder):\n    return getattr(holder, NAME).size\n\n\n"
+            'def register(fn):\n    HANDLERS["x"] = fn\n\n\n'
+            'def dispatch():\n    return HANDLERS["x"]()\n\n\n'  # 從表裡取出來呼叫：測試替身
+            "@deco\n"
+            "def decorated():\n    return 1\n"  # 裝飾器在檔案層執行，邊記在 decorated 上
+        ),
+        "tests/test_lib.py": "def fake():\n    return 2\n",
+        "main.py": (
+            "from lib import Box, Holder, dispatch, register, typed, untyped\n"
+            "from tests.test_lib import fake\n\n\n"
+            "def run():\n"
+            "    register(fake)\n"
+            "    return typed(Box()), untyped(Holder()), dispatch()\n\n\n"
+            "run()\n"
+        ),
+    }
+    for rel, content in files.items():
+        (tmp_path / rel).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / rel).write_text(content)
+    graph = analyze(tmp_path, engine_check=False)
+    observed = record(tmp_path, ["main.py"])
+    assert observed["returncode"] == 0, observed["output_tail"]
+    report = compare(graph, observed)
+    kinds = ("confirmed", "reference", "nested", "candidate", "test_double", "missing")
+    assert {k: report[k] for k in kinds} == {
+        # 檔案→run；run→typed、untyped、register、dispatch、Holder.__init__
+        "confirmed": 6,
+        "reference": 1,  # typed→size
+        "nested": 1,  # lib.py→deco
+        "candidate": 1,  # untyped→size
+        "test_double": 1,  # dispatch→fake
+        "missing": 0,
+    }
+    assert report["coverage"] == round(8 / 9, 4)  # 分母不含測試替身
+    assert report["coverage_with_candidates"] == 1.0
+    assert graph.meta["uses"]["unresolved_property_reads"] == 1
+    untyped = next(n for n in graph.nodes if n.id == "function:lib.py::untyped")
+    unresolved = [(u["text"], u["reason"][:4]) for u in untyped.properties["unresolved_calls"]]
+    assert unresolved == [("getattr(holder, NAME).size", "屬性存取")]
 
 
 def test_a_failing_command_is_reported_not_hidden(tmp_path):

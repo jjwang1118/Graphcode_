@@ -110,14 +110,15 @@ python -m codegraph_fable.analyze <專案目錄> [-o 結果.json] [--python <執
 | AN-U4 | 名字指向變數或參數時，再問 Jedi「它的值是什麼」（`fn = helper; fn()`、`x = Foo(); x.go()`、`self.a.b()`） |
 | AN-U5 | 一個呼叫解出多個目標（兩種可能的型別）→ 每個目標一條邊，都帶 `ambiguous: true` |
 | AN-U6 | 目標在專案外 → 連到 `ext:<最頂層模組>`，邊的 `callee` 記完整名字（`os.path.join`）。圖裡還沒有這個外部節點就新增（例：`builtins`） |
-| AN-U7 | **解不出不產生邊、不可丟掉**：記在呼叫者節點的 `unresolved_calls`（`line`、`text`、`reason`），並計入 `meta.uses.calls.reasons`。原因：`dynamic`（被呼叫的是運算結果，如 `d[k]()`、`getattr(…)()`）、`param`（參數）、`variable`（變數型別推不出）、`module`、`unindexed`（專案內但不是 class／function）、`no_call_method`、`unknown` |
+| AN-U7 | **解不出不產生邊、不可丟掉**：記在呼叫者節點的 `unresolved_calls`（`line`、`text`、`reason`），並計入 `meta.uses.calls.reasons`。原因：`dynamic`（被呼叫的是運算結果，如 `d[k]()`、`getattr(…)()`）、`param`（參數）、`variable`（變數型別推不出）、`module`、`unindexed`（專案內但不是 class／function）、`no_call_method`、`unknown`。另有不是呼叫的 `property`（見 AN-U15） |
 | AN-U8 | **套件沒安裝時的退路**：Jedi 回 `unknown`，而名字是檔案層 `import` 自外部套件的 → 連到那個外部節點，`evidence: import`（只知道來自哪個套件）。名字被參數或區域變數蓋掉時不適用 |
 | AN-U9 | `inherits`：class → 專案內的 class 或外部節點（`base` 記寫法或完整名字）。解不出記在 class 節點的 `unresolved_bases` |
 | AN-U10 | `overrides`：子類別的方法 → 沿專案內繼承往上、最近一個定義了同名方法的祖先的方法。只看專案內 |
 | AN-U11 | `references`：不是呼叫的使用（傳函式當參數、沒括號的裝飾器、型別註解、讀別處的變數）→ 連到專案內的 class／function／variable。只查「名字出現在專案定義名單或 import 別名裡」的使用點；不連外部、不連自己 |
 | AN-U12 | 同一對（來源、目標、`via`、`callee`）合成一條邊，`count` 是次數、`lines` 是行號 |
 | AN-U13 | 引擎對同一個呼叫回了多個定義、其中有名字與寫法相符的 → 只留相符的（濾掉引擎多回的不相干型別，例：`handle.write` 多出 `typing.Callable`） |
-| AN-U14 | **Protocol**：繼承 `Protocol` 的 class 是結構型別。專案內任何 class（不必繼承它）只要有它宣告的全部方法，就算實作了它：該 class 的同名方法 → Protocol 的方法，`overrides` 邊帶 `via: protocol`。這是照名字比對，不檢查參數 |
+| AN-U14 | **Protocol**：繼承 `Protocol` 的 class 是結構型別，專案內的 class 不必繼承它也可能實作它。判斷只看它宣告的**真正的方法**（`@property` 成員不當門檻：可以用類別屬性、dataclass 欄位、`self.x` 滿足，我們看不全）：全部都有 → 算實作；至少兩個且過半 → 也算，但標 `partial`（實際的程式常是鴨子型別，只實作一部分）。符合時，每個同名方法的實作（可能是從祖先繼承來的）→ Protocol 的方法，`overrides` 邊帶 `via: protocol`。照名字比對，不檢查參數 |
+| AN-U15 | **解不出的屬性讀取**：讀 `@property` 會執行函式。接收者型別推不出來、而屬性名字與專案內某個 `@property` 同名時，記在該節點的 `unresolved_calls`（原因 `property`），並計入 `meta.uses.unresolved_property_reads`（不計入 `calls.unresolved`）。其他解不出的屬性存取不記 |
 
 `calls`／`inherits`／`references` 邊的 properties：
 
@@ -158,7 +159,7 @@ import 的別名（`as`）不寫到邊上。
 | `parse_errors` | 語法錯誤的檔案 |
 | `engine` | `name`、`available`；可用時另有 `version`、`agree`、`disagree`、`unchecked`；不可用時有 `error` |
 | `engine_disagreements` | 每筆：`module`、`python`（Python 查到的檔案）、`engine`（Jedi 查到的檔案） |
-| `uses` | `available`；可用時有 `calls`（`expressions`、`resolved`、`unresolved`、`local`、`external`、`ambiguous`、`reasons`）、`inherits`（`bases`、`resolved`、`unresolved`）、`references`、`overrides`（邊數） |
+| `uses` | `available`；可用時有 `calls`（`expressions`、`resolved`、`unresolved`、`local`、`external`、`ambiguous`、`reasons`）、`inherits`（`bases`、`resolved`、`unresolved`）、`references`、`overrides`（邊數）、`unresolved_property_reads` |
 
 ---
 

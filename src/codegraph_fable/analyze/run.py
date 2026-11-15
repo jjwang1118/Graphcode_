@@ -197,6 +197,7 @@ def analyze(
             "calls": uses.calls,
             "inherits": uses.inherits,
             "references": uses.references,
+            "unresolved_property_reads": uses.unresolved_property_reads,
             "overrides": uses.overrides,
         }
 
