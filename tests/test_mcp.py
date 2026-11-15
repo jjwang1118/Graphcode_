@@ -130,10 +130,12 @@ def test_tools_over_the_mcp_protocol(project):
                 "detail": await call("detail", target="Foo.go", source=False),
                 "missing": await call("detail", target="no_such_thing"),
                 "overview": await call("overview"),
+                "cycles": await call("cycles"),
             }
 
     names, out = asyncio.run(run())
-    assert names == ["analyze", "detail", "find", "impact", "overview"]
+    assert names == ["analyze", "cycles", "detail", "find", "impact", "overview"]
+    assert "沒有循環依賴" in out["cycles"]
     assert "分析結果來源：analyzed" in out["analyze"]
     assert "function app/util.py::helper" in out["find"]
     assert "第 1 層（4）" in out["impact"] and "第 2 層" not in out["impact"]

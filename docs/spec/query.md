@@ -13,7 +13,7 @@
 | 回傳一般的 dict／list | 文字排版是 MCP、網頁各自的事 |
 
 ```python
-from codegraph_fable.query import Index, impact, detail, overview, file_dependencies
+from codegraph_fable.query import Index, impact, detail, overview, cycles, file_dependencies
 index = Index(graph)          # 建一次，重複查詢
 ```
 
@@ -26,6 +26,7 @@ index = Index(graph)          # 建一次，重複查詢
 | `index.py` | `Index`（進出邊索引、`parent`／`children`、`find`、`descendants`、`ancestors`）、`owner_file` |
 | `impact.py` | `impact`：改這裡影響誰 |
 | `detail.py` | `detail`：function／class 的細節清單；`SIDE_EFFECTS` 對照表 |
+| `cycles.py` | `cycles`：循環依賴 |
 | `overview.py` | `overview`：專案概覽；`file_dependencies`：檔案層的依賴 |
 | `view.py` | `view`：畫面用的收合視圖；`locate`：節點在畫面上由誰代表。規則見 `web.md`（W-V1 – W-V8）。參數：`expanded`、`edge_types`、`externals`、`level`、`collapsed` |
 
@@ -79,9 +80,26 @@ index = Index(graph)          # 建一次，重複查詢
 
 ---
 
+## `cycles(index, deferred=False)`
+
+哪些檔案互相 import。回傳 `deferred`、`count`、`components`；每一組有 `files`、`size`、`example`（其中最短的一圈，頭尾是同一個檔案）、`edges`（這一圈的每一步：`source`、`target`、`lines`）。
+
+| # | 規則 |
+|---|---|
+| Q-C1 | 只看 `imports` 邊、目標是專案內的檔案。**一組**＝互相到得了的檔案群（兩個以上） |
+| Q-C2 | `TYPE_CHECKING` 底下的 import 不算：執行時不會發生 |
+| Q-C3 | `deferred=False`（預設）只算寫在檔案層的 import（一 import 就發生）；`deferred=True` 連寫在函式或 class 裡的也算（呼叫到才發生） |
+| Q-C4 | 檔案 import 自己不算 |
+| Q-C5 | 排序：檔案多的組在前，同樣多的照檔名 |
+| Q-C6 | `__init__.py` 轉出子模組的名字、而子模組又 import 這個套件自己綁定的名字，會成一圈（這是真的循環，雖然常常跑得起來） |
+
+`overview` 的 `cycles` 欄位：`{ module: 組數, with_deferred: 組數 }`。
+
+---
+
 ## `overview(index, top=10)`
 
-`root`、`search_roots`、`counts`、`packages`（最上層資料夾 → Python 檔數）、`externals`（類別 → 套件名）、`entry_points`（有 `__main__` 判斷的檔案）、`most_used_files`（被最多檔案依賴的）、`completeness`。
+`root`、`search_roots`、`counts`、`cycles`、`packages`（最上層資料夾 → Python 檔數）、`externals`（類別 → 套件名）、`entry_points`（有 `__main__` 判斷的檔案）、`most_used_files`（被最多檔案依賴的）、`completeness`。
 
 ## `file_dependencies(index)`
 
@@ -98,4 +116,4 @@ index = Index(graph)          # 建一次，重複查詢
 | 動態分派是高估 | 接收者型別其實確定時（`Foo().m()`）也會列入 `possible` |
 | 副作用對照表不完整 | 第三方套件大多沒列 |
 
-沒有測試的：`overview` 的 `entry_points`、Q-I4 的多層繼承、`detail` 用在 class 上。
+沒有測試的：循環只靠 `calls`／`references` 形成、沒有 import 的情況（不偵測）、`overview` 的 `entry_points`、Q-I4 的多層繼承、`detail` 用在 class 上。

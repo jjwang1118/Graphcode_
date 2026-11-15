@@ -24,7 +24,7 @@
 |---|---|
 | `../service.py` | 取得分析結果：記憶體 → 專案內的存檔 → 重新分析；判斷是否過期。**與網頁共用**，所以放在套件最上層 |
 | `render.py` | 把 `query/` 的結果排成精簡文字（純函式，不依賴 `mcp` 套件） |
-| `server.py` | 註冊五個工具；只呼叫 `service`、`query`、`render` |
+| `server.py` | 註冊六個工具；只呼叫 `service`、`query`、`render` |
 | `__main__.py` | 啟動 |
 
 ---
@@ -39,6 +39,7 @@
 | `overview` | `project` | 各資料夾檔案數、外部套件（依類別）、可直接執行的檔案、被最多檔案依賴的檔案 |
 | `find` | `project`、`name` | 定義位置與簽名；同名的全部列出 |
 | `impact` | `project`、`target`、`depth=3`、`limit=60` | 一層層的使用者，每筆標「確定／可能」；候選；被誰覆寫；完整度 |
+| `cycles` | `project`、`deferred=false` | 互相 import 的檔案，每組列出其中一圈與行號 |
 | `detail` | `project`、`target`、`source=true` | 介面、呼叫、引用、狀態、副作用、例外、回傳、原始碼，每區塊標「準確／推論／估計」 |
 
 `target`／`name` 接受：`helper`、`Foo.go`、`app/util.py::helper`、完整 id。

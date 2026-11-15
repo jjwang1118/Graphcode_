@@ -74,6 +74,7 @@ interface Props {
   onToggleRelation: (type: EdgeType) => void;
   summary: Summary | null;
   view: View | null;
+  onShowCycles: () => void;
 }
 
 export function Sidebar(props: Props) {
@@ -214,10 +215,12 @@ export function Sidebar(props: Props) {
           <div className="stats">
             <Stat label="節點" value={view.meta.visible_nodes} />
             <Stat label="邊" value={view.meta.visible_edges} />
-            <Stat label="呼叫" value={calls?.expressions ?? 0} />
+            <button className="stat-button" onClick={props.onShowCycles} title="互相 import 的檔案有幾組；點一下看清單">
+              <Stat label="循環" value={summary.cycles} />
+            </button>
           </div>
           {/* 只在不是 0 的時候顯示：平常沒事就不該佔版面，出事一定要看得到 */}
-          {calls && calls.unresolved > 0 && <Row label="呼叫解不出" value={calls.unresolved} hint="解不出的呼叫不會出現在圖上" />}
+          {calls && calls.unresolved > 0 && <Row label="呼叫解不出" value={calls.unresolved} hint={`共 ${calls.expressions} 個呼叫；解不出的不會出現在圖上`} />}
           {!summary.uses.available && <Row label="沒有呼叫關係" value={0} />}
           {summary.unresolved_imports > 0 && <Row label="接不到目標" value={summary.unresolved_imports} />}
           {summary.parse_errors.length > 0 && <Row label="解析失敗" value={summary.parse_errors.length} hint={summary.parse_errors.map((e) => e.file).join(', ')} />}

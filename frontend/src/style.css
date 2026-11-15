@@ -54,6 +54,8 @@ button.line-legend { cursor: pointer; }
 .line-legend .note { color: #6b7a94; margin-left: 8px; }
 .line-legend .count { width: 30px; text-align: center; font-size: 12px; background: #0a0d14; border: 1px solid #1e2536; border-radius: 3px; padding: 1px 0; }
 .stats { display: flex; gap: 18px; margin-bottom: 10px; }
+.stat-button { background: none; border: 0; padding: 0; color: inherit; font-family: inherit; text-align: left; cursor: pointer; }
+.stat-button:hover .stat { color: #7de2ff; }
 .stat { font-size: 20px; line-height: 1.1; }
 .stats .caption { margin-top: 2px; }
 .kv { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; color: #ff6b6b; }

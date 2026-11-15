@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from typing import Any
 
+from .cycles import cycles
 from .index import Index, owner_file
 
 _USE_EDGES = ("calls", "references", "inherits")
@@ -47,6 +48,8 @@ def overview(index: Index, top: int = 10) -> dict[str, Any]:
         "entry_points": sorted(
             n.id[5:] for n in python_files if n.properties.get("has_main_guard")
         ),
+        # 循環依賴的組數：檔案層的 import／連函式裡的 import 也算
+        "cycles": {"module": cycles(index)["count"], "with_deferred": cycles(index, True)["count"]},
         "most_used_files": [{"file": f, "dependents": len(d)} for f, d in most_used],
         "completeness": {
             "parse_errors": len(meta.get("parse_errors", [])),

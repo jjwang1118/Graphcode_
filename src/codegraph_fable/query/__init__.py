@@ -3,6 +3,7 @@
 唯一的例外是 `detail` 會依行號從磁碟讀 function 的原始碼。
 """
 
+from .cycles import cycles
 from .detail import SIDE_EFFECTS, detail
 from .impact import impact
 from .index import Index, owner_file
@@ -13,6 +14,7 @@ __all__ = [
     "EDGE_TYPES",
     "SIDE_EFFECTS",
     "Index",
+    "cycles",
     "detail",
     "file_dependencies",
     "impact",

@@ -10,7 +10,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from ..query import EDGE_TYPES, Index, detail, impact, locate, overview, view
+from ..query import EDGE_TYPES, Index, cycles, detail, impact, locate, overview, view
 from ..service import Service
 
 ALLOWED_ENV = "CODEGRAPH_ALLOWED_ROOTS"
@@ -84,12 +84,18 @@ def create_app(service: Service | None = None, allowed_roots: list[str] | None =
         return {
             "source": source,
             "unresolved_imports": len(meta.get("unresolved_imports", [])),
+            "cycles": cycles(index)["count"],
             **{k: meta.get(k) for k in keys},
         }
 
     @app.post("/api/overview")
     def overview_endpoint(request: ProjectRequest) -> dict[str, Any]:
         return overview(index_of(request.project)[0])
+
+    @app.post("/api/cycles")
+    def cycles_endpoint(request: ProjectRequest) -> dict[str, Any]:
+        index = index_of(request.project)[0]
+        return {"module": cycles(index), "with_deferred": cycles(index, True)}
 
     @app.post("/api/view")
     def view_endpoint(request: ViewRequest) -> dict[str, Any]:

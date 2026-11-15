@@ -151,3 +151,6 @@ def test_api_round_trip(client):
     assert info["interface"]["signature"] == "()" and "return LIMIT" in info["source"]["text"]
     assert http.post("/api/detail", json={"project": project, "target": "x"}).status_code == 404
     assert http.post("/api/overview", json={"project": project}).json()["packages"] == {"app": 6}
+    assert analyzed["cycles"] == 0
+    loops = http.post("/api/cycles", json={"project": project}).json()
+    assert loops["module"]["count"] == 0 and loops["with_deferred"]["count"] == 0

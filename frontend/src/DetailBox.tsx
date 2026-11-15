@@ -3,7 +3,7 @@
 // 區塊內容太多時在區塊裡捲動，不把整欄撐長。說明文字收在滑鼠提示裡。
 // （檔名沿用舊的；原本是浮在點擊處的小視窗，使用者要求改成固定在右側。）
 
-import type { Detail, Impact, Reliability, ViewNode } from './api';
+import type { CycleGroup, Cycles, Detail, Impact, Reliability, ViewNode } from './api';
 import { shortId, shortName } from './elements';
 import type { EdgeInfo } from './Graph';
 
@@ -84,6 +84,51 @@ export function EdgeContent({ edges }: { edges: EdgeInfo[] }) {
           </Line>
         ))}
       </div>
+    </>
+  );
+}
+
+function CycleGroups({ groups, onReveal }: { groups: CycleGroup[]; onReveal: (id: string) => void }) {
+  return (
+    <>
+      {groups.slice(0, 40).map((group, index) => (
+        <Group key={index} label={`${group.size} 個檔案`} count={group.edges.length} open={index < 3}>
+          {group.edges.map((edge) => (
+            <Line key={`${edge.source}>${edge.target}`} side={`行 ${edge.lines.slice(0, 3).join(',')}`} title={`${edge.source} → ${edge.target}`}>
+              <button className="link" onClick={() => onReveal(`file:${edge.source}`)}>
+                {shortName(`file:${edge.source}`)}
+              </button>
+              {' → '}
+              <button className="link" onClick={() => onReveal(`file:${edge.target}`)}>
+                {shortName(`file:${edge.target}`)}
+              </button>
+            </Line>
+          ))}
+        </Group>
+      ))}
+      {groups.length > 40 && <div className="more">只列出 40 組，共 {groups.length} 組</div>}
+    </>
+  );
+}
+
+export function CyclesContent({ cycles, onReveal }: { cycles: Cycles; onReveal: (id: string) => void }) {
+  // 只有連函式裡的 import 也算才成圈的那幾組
+  const strict = new Set(cycles.module.components.map((group) => group.files.join('|')));
+  const extra = cycles.with_deferred.components.filter((group) => !strict.has(group.files.join('|')));
+  return (
+    <>
+      <div className="p-title">循環依賴</div>
+      <div className="p-meta" title="TYPE_CHECKING 底下的 import 不算">
+        互相 import 的檔案
+      </div>
+      <Section title="檔案層的 import" count={cycles.module.count} open hint="一 import 就會發生">
+        {cycles.module.count === 0 ? <div className="more">沒有</div> : <CycleGroups groups={cycles.module.components} onReveal={onReveal} />}
+      </Section>
+      {extra.length > 0 && (
+        <Section title="含函式內的 import" count={extra.length} open>
+          <CycleGroups groups={extra} onReveal={onReveal} />
+        </Section>
+      )}
     </>
   );
 }

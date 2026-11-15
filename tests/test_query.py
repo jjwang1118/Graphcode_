@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from codegraph_fable.analyze import analyze
-from codegraph_fable.query import Index, detail, file_dependencies, impact, overview
+from codegraph_fable.query import Index, cycles, detail, file_dependencies, impact, overview
 
 FIXTURES = Path(__file__).parent / "fixtures"
 USE, MODELS, UTIL = "app/use.py", "app/models.py", "app/util.py"
@@ -186,3 +186,63 @@ def test_detail_reports_missing_source_instead_of_failing(calls):
     assert result["source"]["available"] is False
     assert "state" not in result
     assert result["calls"]["local"]  # 圖裡的資訊仍然有
+
+
+def _project(tmp_path, files):
+    for rel, content in files.items():
+        path = tmp_path / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content)
+    return Index(analyze(tmp_path, engine_check=False, resolve_uses_=False))
+
+
+def test_cycles_between_module_level_imports(tmp_path):
+    index = _project(
+        tmp_path,
+        {
+            "a.py": "import b\n",
+            "b.py": "import c\n",
+            "c.py": "import a\n",
+            "x.py": "import y\n",
+            "y.py": "import x\n",
+            "lonely.py": "import a\n",
+        },
+    )
+    result = cycles(index)
+    assert result["count"] == 2
+    big, small = result["components"]  # 大的排前面
+    assert big["files"] == ["a.py", "b.py", "c.py"] and small["files"] == ["x.py", "y.py"]
+    assert big["example"] == ["a.py", "b.py", "c.py", "a.py"]
+    assert big["edges"][0] == {"source": "a.py", "target": "b.py", "lines": [1]}
+    assert overview(index)["cycles"] == {"module": 2, "with_deferred": 2}
+
+
+def test_imports_that_do_not_run_at_import_time_are_not_cycles(tmp_path):
+    index = _project(
+        tmp_path,
+        {
+            # 函式裡的 import：呼叫到才發生
+            "a.py": "def f():\n    import b\n",
+            "b.py": "import a\n",
+            # 只給型別檢查用：執行時不發生
+            "c.py": "from typing import TYPE_CHECKING\nif TYPE_CHECKING:\n    import d\n",
+            "d.py": "import c\n",
+            "self_import.py": "import self_import\n",
+        },
+    )
+    assert cycles(index)["count"] == 0
+    deferred = cycles(index, deferred=True)
+    assert [g["files"] for g in deferred["components"]] == [["a.py", "b.py"]]
+    assert overview(index)["cycles"] == {"module": 0, "with_deferred": 1}
+
+
+def test_package_init_reexport_cycle_is_found(tmp_path):
+    index = _project(
+        tmp_path,
+        {
+            "pkg/__init__.py": "from .impl import thing\nVERSION = 1\n",
+            "pkg/impl.py": "from pkg import VERSION\n\n\ndef thing():\n    return VERSION\n",
+        },
+    )
+    (group,) = cycles(index)["components"]
+    assert group["files"] == ["pkg/__init__.py", "pkg/impl.py"]

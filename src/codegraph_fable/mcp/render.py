@@ -79,6 +79,15 @@ def render_overview(result: dict[str, Any]) -> str:
             f"可直接執行的檔案（{len(entries)}）：{', '.join(entries[:15])}"
             + ("…" if len(entries) > 15 else "")
         )
+    loops = result["cycles"]
+    out.append(
+        f"循環依賴：{loops['module']} 組"
+        + (
+            f"（連函式內的 import 也算：{loops['with_deferred']} 組）"
+            if loops["with_deferred"] != loops["module"]
+            else ""
+        )
+    )
     out.append("被最多檔案依賴：")
     out += [
         f"  {item['file']}（{item['dependents']} 個檔案）" for item in result["most_used_files"]
@@ -244,4 +253,28 @@ def render_detail(result: dict[str, Any], include_source: bool = True) -> str:
     elif include_source:
         out.append(f"原始碼{_tag(source)}：")
         out.append(source["text"])
+    return "\n".join(out)
+
+
+def render_cycles(result: dict[str, Any], limit: int = 20) -> str:
+    scope = (
+        "含函式內的 import（呼叫到才發生）"
+        if result["deferred"]
+        else "只看檔案層的 import（一 import 就發生）"
+    )
+    if not result["components"]:
+        return f"沒有循環依賴（{scope}）。TYPE_CHECKING 底下的 import 不算。"
+    out = [f"循環依賴 {result['count']} 組（{scope}）；TYPE_CHECKING 底下的 import 不算："]
+    for number, group in enumerate(result["components"][:limit], 1):
+        out.append(f"{number}. {group['size']} 個檔案互相依賴，其中一圈：")
+        for edge in group["edges"]:
+            out.append(
+                f"   {edge['source']} → {edge['target']}  L{','.join(map(str, edge['lines'][:4]))}"
+            )
+        if group["size"] > len(group["edges"]):
+            out.append(
+                "   全部：" + ", ".join(group["files"][:30]) + ("…" if group["size"] > 30 else "")
+            )
+    if result["count"] > limit:
+        out.append(f"…只列出 {limit} 組，共 {result['count']} 組。")
     return "\n".join(out)

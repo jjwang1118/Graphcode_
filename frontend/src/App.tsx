@@ -3,8 +3,8 @@
 
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
-import { api, EDGE_TYPES, type Detail, type EdgeType, type Externals, type Found, type Impact, type Summary, type View } from './api';
-import { EdgeContent, NodeContent } from './DetailBox';
+import { api, EDGE_TYPES, type Cycles, type Detail, type EdgeType, type Externals, type Found, type Impact, type Summary, type View } from './api';
+import { CyclesContent, EdgeContent, NodeContent } from './DetailBox';
 import { shortId, toWave } from './elements';
 import { Graph, type EdgeInfo, type Point } from './Graph';
 import { Sidebar } from './Sidebar';
@@ -22,7 +22,7 @@ function Pane({ visible, children }: { visible: boolean; children: React.ReactNo
 }
 
 /** 右側欄正在顯示的東西：一個節點，或一組線。 */
-type Pinned = { node: string } | { edges: EdgeInfo[] };
+type Pinned = { node: string } | { edges: EdgeInfo[] } | { cycles: Cycles };
 
 export function App() {
   const [path, setPath] = useState(() => localStorage.getItem('codegraph.project') ?? '');
@@ -184,6 +184,12 @@ export function App() {
         onToggleRelation={(type) => setShown((list) => (list.includes(type) ? list.filter((t) => t !== type) : [...list, type]))}
         summary={summary}
         view={view}
+        onShowCycles={() =>
+          void guard(async () => {
+            setTarget(null);
+            setPinned({ cycles: await api.cycles(project) });
+          })
+        }
       />
 
       <div className="content">
@@ -259,6 +265,7 @@ export function App() {
             ×
           </button>
           {'edges' in pinned && <EdgeContent edges={pinned.edges} />}
+          {'cycles' in pinned && <CyclesContent cycles={pinned.cycles} onReveal={(id) => void reveal(id)} />}
           {'node' in pinned && pinnedNode && (
             <NodeContent
               node={pinnedNode}

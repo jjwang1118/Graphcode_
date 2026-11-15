@@ -114,6 +114,19 @@ export interface Summary {
   missing_dependencies: string[];
   parse_errors: { file: string }[];
   unresolved_imports: number;
+  cycles: number;
+}
+
+export interface CycleGroup {
+  files: string[];
+  size: number;
+  example: string[];
+  edges: { source: string; target: string; lines: number[] }[];
+}
+
+export interface Cycles {
+  module: { count: number; components: CycleGroup[] };
+  with_deferred: { count: number; components: CycleGroup[] };
 }
 
 async function post<T>(path: string, body: unknown): Promise<T> {
@@ -139,6 +152,7 @@ export interface ViewOptions {
 
 export const api = {
   analyze: (project: string, force = false) => post<Summary>('analyze', { project, force }),
+  cycles: (project: string) => post<Cycles>('cycles', { project }),
   view: (project: string, options: ViewOptions) => post<View>('view', { project, ...options }),
   find: (project: string, name: string) => post<Found[]>('find', { project, name }),
   detail: (project: string, target: string) => post<Detail>('detail', { project, target }),

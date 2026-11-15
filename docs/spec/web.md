@@ -47,12 +47,13 @@ Node 18、npm 9.2 可用；Vite 釘在 6.x（Vite 7 需要更新的 Node）。
 | 端點 | 輸入 | 輸出 |
 |---|---|---|
 | `GET /api/config` | — | `allowed_roots` |
-| `/api/analyze` | `project`、`python?`、`force?` | `source` ＋ `meta` 的摘要欄位 |
+| `/api/analyze` | `project`、`python?`、`force?` | `source` ＋ `meta` 的摘要欄位 ＋ `unresolved_imports`（筆數）＋ `cycles`（檔案層 import 的循環組數） |
 | `/api/view` | `project`、`expanded[]`、`edge_types[]`、`externals` | `{ nodes, edges, meta }`（見下） |
 | `/api/find` | `project`、`name` | 最多 50 筆：`id`、`type`、`label`、`line`、`signature`、`ancestors` |
 | `/api/detail` | `project`、`target`（完整 id） | `query.detail` 的結果 |
 | `/api/impact` | `project`、`target`、`depth?` ＋ `/api/view` 的參數 | `query.impact` 的結果 ＋ `visible` |
 | `/api/overview` | `project` | `query.overview` 的結果 |
+| `/api/cycles` | `project` | `{ module, with_deferred }`，各是 `query.cycles` 的結果 |
 
 分析結果的取得與過期判斷與 MCP 共用（`service.py`，規則見 `mcp.md` MCP-2 – MCP-5）。
 
@@ -122,6 +123,7 @@ Node 18、npm 9.2 可用；Vite 釘在 6.x（Vite 7 需要更新的 Node）。
 | W-F6 | 搜尋列按 **Enter**：找收合中、畫面上看不到的定義，點結果會展開它的上層 |
 | W-F7 | 線依關係上色：`imports` 藍、`inherits` 粉、`calls` 青綠、`references` 土黃；骨架 `contains` 綠、`defines` 紫灰 |
 | W-F18 | **右側欄的排版**（使用者要求不要雜）：最上面是名稱、型別與行號、簽名、說明第一行（最多兩行）。其下每一類一個**可收合的區塊**，標題列有筆數與可靠度標籤。區塊內再分小組（影響範圍的每一層、呼叫的專案內／解不出／外部）。清單**一筆一行**，左邊名稱太長就省略、右邊是行號或關係；每個清單最高約 230px，超過在清單內捲動。預設展開：影響範圍（只開第 1 層）、呼叫（外部收合）、狀態、副作用、例外；預設收合：引用、超過 25 行的原始碼。副作用與例外用小標籤呈現 |
+| W-F19 | **循環**：側欄統計是「節點／邊／循環」（與參照專案相同）。點「循環」的數字，右側欄列出每一組的其中一圈；「只在連函式內的 import 也算時才成圈」的另列一區。點檔名會在圖上展開到那個檔案 |
 
 ### 3D（T8）
 

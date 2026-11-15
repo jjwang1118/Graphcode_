@@ -5,7 +5,7 @@ from __future__ import annotations
 from mcp.server.mcpserver import MCPServer
 
 from ..model import Node
-from ..query import Index, detail, impact, overview
+from ..query import Index, cycles, detail, impact, overview
 from ..service import Service
 from . import render
 
@@ -13,7 +13,8 @@ INSTRUCTIONS = (
     "codegraph：把一個 Python 專案分析成程式碼知識圖譜，回答架構與影響範圍的問題。"
     "每個工具的 project 參數是專案資料夾的絕對路徑。第一次查詢會自動分析（大專案需數十秒），"
     "之後原始碼有變動也會自動重新分析。"
-    "建議順序：overview 看全貌 → find 找定義 → impact 看「改這裡影響誰」→ detail 看 function 做了什麼。"
+    "建議順序：overview 看全貌 → find 找定義 → impact 看「改這裡影響誰」→ detail 看 function 做了什麼；"
+    "cycles 查哪些檔案互相 import。"
     "答案標有「確定／可能／候選」與完整度，回覆使用者時請保留這些區別。"
 )
 
@@ -98,5 +99,14 @@ def build_server(service: Service | None = None) -> MCPServer:
             return render.render_detail(detail(index, node.id), source)
 
         return guarded(run)
+
+    @server.tool(name="cycles")
+    def cycles_tool(project: str, deferred: bool = False) -> str:
+        """循環依賴：哪些檔案互相 import，每組列出其中一圈與行號。
+
+        deferred=False（預設）只看寫在檔案層的 import；True 連寫在函式裡的 import 也算。
+        TYPE_CHECKING 底下的 import 不算（執行時不會發生）。
+        """
+        return guarded(lambda: render.render_cycles(cycles(service.index(project)[0], deferred)))
 
     return server
