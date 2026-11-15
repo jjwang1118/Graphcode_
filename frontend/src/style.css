@@ -1,0 +1,168 @@
+/* 視覺與版面沿用參照專案（codegraph/frontend）：深色、等寬字、左側欄、上方搜尋列、畫布背景動態。 */
+:root {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  line-height: 1.5;
+  font-weight: 400;
+  color-scheme: dark;
+  color: #c8d3e3;
+  background-color: #0a0d14;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+* { box-sizing: border-box; }
+/* 吃滿視窗的固定版面，頁面層不捲動 */
+body { margin: 0; min-width: 320px; min-height: 100vh; overflow: hidden; }
+#root { height: 100vh; }
+
+.layout { display: flex; height: 100%; background: #0a0d14; }
+
+/* ── 側欄 ── */
+.sidebar {
+  width: 260px; flex-shrink: 0; background: #11151f; border-right: 1px solid #1e2536;
+  padding: 16px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto;
+}
+.brand { font-size: 15px; letter-spacing: 2px; color: #7de2ff; }
+.caption { font-size: 11px; letter-spacing: 1px; color: #6b7a94; text-transform: uppercase; }
+section > .caption { margin-bottom: 8px; }
+.caption.sub { display: block; margin: 12px 0 4px; }
+.field {
+  width: 100%; padding: 7px 9px; background: #0a0d14; border: 1px solid #1e2536; border-radius: 4px;
+  color: #c8d3e3; font-family: inherit; font-size: 13px;
+}
+button.field { cursor: pointer; margin-top: 8px; }
+button.field.action { background: #7de2ff; color: #04121a; border-color: transparent; }
+button.field:disabled { cursor: default; background: #1e2536; color: #6b7a94; border-color: transparent; }
+.check { display: flex; align-items: center; gap: 8px; font-size: 12.5px; margin-top: 12px; cursor: pointer; }
+.check input { accent-color: #7de2ff; margin: 0; }
+.range { width: 100%; accent-color: #7de2ff; margin: 0; }
+.pair { display: flex; gap: 6px; }
+.pair .field { margin-top: 0; }
+.error { margin-top: 8px; font-size: 12px; color: #ff8a8a; }
+.legend { display: flex; align-items: center; gap: 9px; font-size: 12.5px; margin-bottom: 7px; }
+.legend > span { flex-shrink: 0; }
+.legend > span.frame { width: 11px; height: 11px; border: 2px solid; border-radius: 50%; }
+.lines { margin-top: 12px; padding-top: 12px; border-top: 1px solid #1e2536; display: flex; flex-direction: column; gap: 9px; }
+.lines .legend { margin-bottom: 0; }
+.line-legend {
+  display: flex; align-items: center; gap: 9px; font-size: 12.5px; color: #c8d3e3;
+  background: none; border: 0; padding: 0; font-family: inherit; text-align: left;
+}
+button.line-legend { cursor: pointer; }
+.line-legend.off { opacity: 0.35; }
+.line-legend .bar { width: 30px; height: 2px; border-radius: 2px; flex-shrink: 0; }
+.line-legend .note { color: #6b7a94; margin-left: 8px; }
+.line-legend .count { width: 30px; text-align: center; font-size: 12px; background: #0a0d14; border: 1px solid #1e2536; border-radius: 3px; padding: 1px 0; }
+.stats { display: flex; gap: 18px; margin-bottom: 10px; }
+.stat { font-size: 20px; line-height: 1.1; }
+.stats .caption { margin-top: 2px; }
+.kv { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 4px; color: #ff6b6b; }
+.kv > span:first-child { color: #6b7a94; }
+
+/* ── 上方搜尋列 ── */
+.content { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+header { padding: 10px; border-bottom: 1px solid #1e2536; display: flex; align-items: center; gap: 10px; position: relative; }
+.search {
+  flex: 1; padding: 8px 12px; background: #11151f; border: 1px solid #1e2536; border-radius: 20px;
+  color: #c8d3e3; font-family: inherit; font-size: 13px;
+}
+.hint { font-size: 12px; color: #6b7a94; }
+.results {
+  position: absolute; left: 10px; top: 48px; z-index: 20; max-width: 560px; max-height: 260px; overflow-y: auto;
+  background: #11151f; border: 1px solid #8fa3c4; border-radius: 6px; padding: 8px 10px; font-size: 12px;
+  display: flex; flex-direction: column; gap: 4px; box-shadow: 0 4px 16px rgba(0, 0, 0, 0.45);
+}
+
+/* ── 畫布 ── */
+main { flex: 1; min-height: 0; position: relative; }
+.pane { position: absolute; inset: 0; }
+.stage { position: relative; width: 100%; height: 100%; }
+.failure { position: absolute; left: 12px; top: 10px; font-size: 12px; color: #ff6b6b; }
+.canvas { position: relative; width: 100%; height: 100%; cursor: grab; }
+.zoom { position: absolute; left: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 6px; }
+.zoom button {
+  width: 30px; height: 30px; background: #11151f; border: 1px solid #1e2536; border-radius: 4px;
+  color: #c8d3e3; cursor: pointer; font-size: 13px; line-height: 1; padding: 0; font-family: inherit;
+}
+.minimap {
+  position: absolute; right: 16px; bottom: 16px; width: 200px; height: 150px; background: #11151f;
+  border: 1px solid #1e2536; border-radius: 6px; overflow: hidden;
+}
+.minimap-canvas { width: 100%; height: 100%; }
+.minimap-viewport { position: absolute; left: 0; top: 0; width: 0; height: 0; border: 1px solid #a78bfa; background: #a78bfa18; pointer-events: none; }
+
+/* ── 右側欄：點了節點或線才出現 ──
+   每一類一個可收合的區塊；清單一筆一行，太長省略；內容多時在區塊裡捲動。 */
+.panel {
+  width: 360px; flex-shrink: 0; background: #11151f; border-left: 1px solid #1e2536; padding: 16px 0 24px;
+  overflow-y: auto; font-size: 12px; line-height: 1.6; color: #c8d3e3; position: relative;
+}
+.panel .close { position: absolute; top: 10px; right: 12px; border: 0; background: none; color: #6b7a94; font-size: 18px; cursor: pointer; padding: 0 4px; font-family: inherit; }
+.panel .p-title { font-size: 15px; color: #7de2ff; word-break: break-all; padding: 0 40px 0 16px; }
+.panel .p-meta { color: #6b7a94; font-size: 11.5px; padding: 0 16px; }
+.panel .p-doc { color: #6b7a94; padding: 6px 16px 0; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.panel .block-code { display: block; margin: 10px 16px 0; padding: 6px 8px; background: #0a0d14; border: 1px solid #1e2536; border-radius: 4px; word-break: break-all; }
+
+.panel details.block { border-top: 1px solid #1e2536; margin-top: 14px; }
+.panel details.block > summary {
+  list-style: none; cursor: pointer; display: flex; align-items: center; gap: 8px; padding: 10px 16px 6px;
+  font-size: 11px; letter-spacing: 1px; color: #6b7a94; user-select: none;
+}
+.panel summary::-webkit-details-marker { display: none; }
+.panel details.block > summary::before { content: '▸'; font-size: 10px; width: 8px; }
+.panel details.block[open] > summary::before { content: '▾'; }
+.panel details.block > summary .name { color: #c8d3e3; }
+.panel .count { margin-left: auto; font-size: 11px; color: #6b7a94; background: #0a0d14; border: 1px solid #1e2536; border-radius: 9px; padding: 0 7px; letter-spacing: 0; }
+.panel details.block > summary .tag { margin-left: 0; }
+.panel details.block > summary .count + .tag { margin-left: 0; }
+.panel .body { padding: 0 16px; }
+
+.panel details.group { margin-top: 6px; }
+.panel details.group > summary {
+  list-style: none; cursor: pointer; display: flex; align-items: center; gap: 6px; padding: 3px 0;
+  color: #8fa3c4; font-size: 11.5px; user-select: none;
+}
+.panel details.group > summary::before { content: '▸'; font-size: 9px; width: 8px; color: #6b7a94; }
+.panel details.group[open] > summary::before { content: '▾'; }
+.panel .list { max-height: 232px; overflow-y: auto; border-left: 1px solid #1e2536; margin-left: 3px; padding-left: 10px; }
+.panel .list.top { margin: 12px 16px 0; }
+.panel .line { display: flex; align-items: baseline; gap: 8px; padding: 1px 0; }
+.panel .line .main { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.panel .line .side { flex-shrink: 0; color: #6b7a94; font-size: 11px; }
+.panel .more { color: #6b7a94; font-size: 11px; padding: 2px 0; }
+.panel .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 2px 0 4px; }
+.panel .chip { border: 1px solid #1e2536; background: #0a0d14; border-radius: 10px; padding: 0 8px; font-size: 11.5px; }
+.panel .pairs { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; }
+.panel .pairs > span:nth-child(odd) { color: #6b7a94; }
+.panel .pairs > span:nth-child(even) { word-break: break-all; }
+.panel pre { margin: 2px 0 0; padding: 8px; background: #0a0d14; border: 1px solid #1e2536; border-radius: 4px; overflow: auto; max-height: 420px; font-family: inherit; font-size: 11.5px; line-height: 1.5; }
+code { background: #1e2536; padding: 0 3px; border-radius: 3px; font-family: inherit; }
+code.block { display: block; padding: 3px 6px; margin: 4px 0 2px; word-break: break-all; }
+.tag { font-size: 10px; padding: 0 5px; border-radius: 8px; border: 1px solid currentColor; }
+.tag-exact { color: #5eead4; }
+.tag-inferred { color: #7aa2e3; }
+.tag-heuristic { color: #f0883e; }
+button.link { border: 0; padding: 0; background: none; color: #7de2ff; font-family: inherit; font-size: inherit; cursor: pointer; text-align: left; }
+button.link:hover { text-decoration: underline; }
+.dim-text { color: #6b7a94; }
+.danger { color: #ff6b6b; }
+.warn { color: #f0883e; }
+.accent { color: #a78bfa; }
+.impact-text { color: #5eead4; }
+.faint { opacity: 0.6; }
+
+/* ── 畫布背景的動態效果：純 CSS，不進 Cytoscape 的繪圖迴圈 ── */
+.bg-grid, .bg-glow, .bg-scan { position: absolute; inset: 0; pointer-events: none; }
+.bg-grid {
+  background-image: linear-gradient(rgba(125, 226, 255, 0.055) 1px, transparent 1px), linear-gradient(90deg, rgba(125, 226, 255, 0.055) 1px, transparent 1px);
+  background-size: 44px 44px; animation: grid-drift 26s linear infinite;
+}
+.bg-glow { background: radial-gradient(55% 45% at 50% 45%, rgba(167, 139, 250, 0.16), transparent 70%); animation: glow-pulse 9s ease-in-out infinite; }
+.bg-scan {
+  background: linear-gradient(180deg, transparent 0%, rgba(125, 226, 255, 0.05) 48%, rgba(125, 226, 255, 0.09) 50%, rgba(125, 226, 255, 0.05) 52%, transparent 100%);
+  background-size: 100% 220px; background-repeat: no-repeat; animation: scan-sweep 11s linear infinite;
+}
+@keyframes grid-drift { from { background-position: 0 0, 0 0; } to { background-position: 44px 44px, 44px 44px; } }
+@keyframes glow-pulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 0.9; } }
+@keyframes scan-sweep { from { background-position: 0 -240px; } to { background-position: 0 100%; } }
+@media (prefers-reduced-motion: reduce) { .bg-grid, .bg-glow, .bg-scan { animation: none; } }

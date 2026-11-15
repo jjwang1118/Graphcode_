@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "codegraph-fable"
+version = "0.1.0"
+description = "把 Python 專案建成程式碼知識圖譜，給 Agent（MCP）與網頁使用"
+requires-python = ">=3.11"
+dependencies = ["jedi", "mcp>=2,<3", "fastapi", "uvicorn"]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = ["tests/fixtures", "experiments"]
+
+[tool.ruff]
+line-length = 100
+extend-exclude = ["tests/fixtures", "experiments"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["E501"]

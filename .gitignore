@@ -1,0 +1,10 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.codegraph/
+
+# 給 Claude Code 的工作指示：只留在本機，不進版控（使用者要求）
+CLAUDE.md
